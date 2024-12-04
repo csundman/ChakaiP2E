@@ -27,7 +27,7 @@ steps:
       
       # Set variables
       STORAGE_ACCOUNT_NAME="chakaip2efrontend"
-      STORAGE_CONTAINER_NAME="ChakaiP2EContainer"
+      #STORAGE_CONTAINER_NAME="ChakaiP2EContainer"
       LOCAL_DIRECTORY="???????"  # Directory inside the Docker container to upload
       RESOURCE_GROUP="ChakaiP2E"
 
@@ -35,18 +35,18 @@ steps:
       ACCOUNT_KEY=$(az storage account keys list --resource-group $RESOURCE_GROUP --account-name $STORAGE_ACCOUNT_NAME --query '[0].value' -o tsv)
 
       # Create the container if it doesn't exist
-      echo "Creating container if it doesn't exist..."
-      az storage container create \
-        --name $STORAGE_CONTAINER_NAME \
-        --account-name $STORAGE_ACCOUNT_NAME \
-        --account-key $ACCOUNT_KEY || echo "Container already exists, skipping creation"
+      #echo "Creating container if it doesn't exist..."
+      #az storage container create \
+      #  --name $STORAGE_CONTAINER_NAME \
+      #  --account-name $STORAGE_ACCOUNT_NAME \
+      #  --account-key $ACCOUNT_KEY || echo "Container already exists, skipping creation"
 
       # Upload the directory to Azure Blob Storage
       echo "Uploading directory to Azure Blob Storage..."
       az storage blob upload-batch \
         --account-name $STORAGE_ACCOUNT_NAME \
         --account-key $ACCOUNT_KEY \
-        --destination $STORAGE_CONTAINER_NAME \
+        --destination '$web' \
         --source $LOCAL_DIRECTORY
 
   displayName: 'Create Container and Upload Directory to Azure Blob Storage'
