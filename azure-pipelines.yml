@@ -15,3 +15,12 @@ steps:
     npm install
     npm run build
   displayName: 'npm install and build'
+
+- task: AzureFileCopy@6
+  inputs:
+    SourcePath: 'sourceFolder????????'
+    azureSubscription: 'Azure subscription 1(a4ec0aaa-da74-41fa-a4fe-f5b422397ece)'
+    Destination: 'AzureBlob'
+    storage: 'chakaip2efrontend'
+    ContainerName: 'ChakaiP2EContainer'
+    CleanTargetBeforeCopy: true
