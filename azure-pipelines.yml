@@ -16,11 +16,17 @@ steps:
     npm run build
   displayName: 'npm install and build'
 
-- task: AzureFileCopy@6
+- task: AzureCLI@2
   inputs:
-    SourcePath: 'chakai-pe2-app'
     azureSubscription: 'Azure subscription 1(a4ec0aaa-da74-41fa-a4fe-f5b422397ece)'
-    Destination: 'AzureBlob'
-    storage: 'chakaip2efrontend' 
-    ContainerName: 'chakaiP2EContainer'
-    CleanTargetBeforeCopy: true
+    scriptType: 'batch'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      az storage blob upload \
+        --account-name <your_storage_account_name> \
+        --container-name <your_container_name> \
+        --file <path_to_local_file_or_directory> \
+        --name <target_blob_name> \
+        --auth-mode key \
+        --account-key $(your_storage_account_key)
+    displayName: 'Upload file to Blob Storage'
