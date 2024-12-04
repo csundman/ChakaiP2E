@@ -18,15 +18,35 @@ steps:
 
 - task: AzureCLI@2
   inputs:
-    azureSubscription: 'Azure subscription 1(a4ec0aaa-da74-41fa-a4fe-f5b422397ece)'
-    scriptType: 'batch'
+    azureSubscription: 'Azure Sub Service Connection'  # The service connection you created in Azure DevOps
+    scriptType: 'bash'
     scriptLocation: 'inlineScript'
     inlineScript: |
-      az storage blob upload \
-        --account-name <your_storage_account_name> \
-        --container-name <your_container_name> \
-        --file <path_to_local_file_or_directory> \
-        --name <target_blob_name> \
-        --auth-mode key \
-        --account-key $(your_storage_account_key)
-    displayName: 'Upload file to Blob Storage'
+      # Log in to Azure using Service Principal (via Azure CLI)
+      echo "Logging in to Azure..."
+      
+      # Set variables
+      STORAGE_ACCOUNT_NAME="chakaip2efrontend"
+      STORAGE_CONTAINER_NAME="ChakaiP2EContainer"
+      LOCAL_DIRECTORY="???????"  # Directory inside the Docker container to upload
+      RESOURCE_GROUP="ChakaiP2E"
+
+      # Retrieve Storage Account Key dynamically using Azure CLI
+      ACCOUNT_KEY=$(az storage account keys list --resource-group $RESOURCE_GROUP --account-name $STORAGE_ACCOUNT_NAME --query '[0].value' -o tsv)
+
+      # Create the container if it doesn't exist
+      echo "Creating container if it doesn't exist..."
+      az storage container create \
+        --name $STORAGE_CONTAINER_NAME \
+        --account-name $STORAGE_ACCOUNT_NAME \
+        --account-key $ACCOUNT_KEY || echo "Container already exists, skipping creation"
+
+      # Upload the directory to Azure Blob Storage
+      echo "Uploading directory to Azure Blob Storage..."
+      az storage blob upload-batch \
+        --account-name $STORAGE_ACCOUNT_NAME \
+        --account-key $ACCOUNT_KEY \
+        --destination $STORAGE_CONTAINER_NAME \
+        --source $LOCAL_DIRECTORY
+
+  displayName: 'Create Container and Upload Directory to Azure Blob Storage'
