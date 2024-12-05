@@ -42,7 +42,7 @@ export function Breadcrumb() {
             Home
           </Link>
         </li>
-        {segments.map((segment, index) => (
+        {segments?.map((segment, index) => (
           <li key={segment.path} className="flex items-center">
             <span className="mx-2 text-gray-400 dark:text-gray-600">/</span>
             {index === segments.length - 1 ? (

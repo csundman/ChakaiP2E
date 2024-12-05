@@ -27,7 +27,7 @@ export default function CharacterDetails() {
       try {
         // For now, simulate API call with dummy data
         const foundCharacter = DUMMY_CHARACTERS.find(
-          c => c.id === Number(params.id)
+          c => c.id === Number(params?.id)
         );
         
         if (!foundCharacter) {
@@ -43,7 +43,7 @@ export default function CharacterDetails() {
     }
 
     fetchCharacter();
-  }, [params.id]);
+  }, [params?.id]);
 
   if (isLoading) return <div>Loading character...</div>;
   if (error) return <div>Error: {error}</div>;

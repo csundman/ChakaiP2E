@@ -38,7 +38,7 @@ export function Grid<T>({ data, columns: initialColumns, onRowClick }: GridProps
     setDraggedColumn(index);
   };
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
 
@@ -82,7 +82,7 @@ export function Grid<T>({ data, columns: initialColumns, onRowClick }: GridProps
               key={String(column.field)}
               draggable
               onDragStart={() => handleDragStart(index)}
-              onDragOver={(e) => handleDragOver(e, index)}
+              onDragOver={(e) => handleDragOver(e)}
               onDrop={(e) => handleDrop(e, index)}
               className={`border-b border-gray-200 dark:border-gray-700 px-4 py-2 text-left 
                 text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700
