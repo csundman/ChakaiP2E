@@ -1,5 +1,3 @@
-import Nav from './Nav';
-
 export default function HomeComponent() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
