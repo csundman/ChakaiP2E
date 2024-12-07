@@ -40,6 +40,11 @@ steps:
       #  --name $STORAGE_CONTAINER_NAME \
       #  --account-name $STORAGE_ACCOUNT_NAME \
       #  --account-key $ACCOUNT_KEY || echo "Container already exists, skipping creation"
+      
+      # Clean up the $web container
+      echo "Deleting all blobs in the \$web container..."
+      az storage blob delete-batch --account-name $STORAGE_ACCOUNT_NAME --source '$web' --auth-mode key
+      echo "All blobs in \$web container have been deleted."
 
       # Upload the directory to Azure Blob Storage
       echo "Uploading directory to Azure Blob Storage..."
