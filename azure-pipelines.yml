@@ -28,7 +28,7 @@ steps:
       # Set variables
       STORAGE_ACCOUNT_NAME="chakaip2efrontend"
       #STORAGE_CONTAINER_NAME="ChakaiP2EContainer"
-      LOCAL_DIRECTORY="???????"  # Directory inside the Docker container to upload
+      LOCAL_DIRECTORY=".\chakai-p2e-app\.next\standalone\"  # Directory inside the Docker container to upload
       RESOURCE_GROUP="ChakaiP2E"
 
       # Retrieve Storage Account Key dynamically using Azure CLI
