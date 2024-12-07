@@ -48,5 +48,6 @@ steps:
         --account-key $ACCOUNT_KEY \
         --destination '$web' \
         --source $LOCAL_DIRECTORY
+        --overwrite
 
   displayName: 'Create Container and Upload Directory to Azure Blob Storage'
