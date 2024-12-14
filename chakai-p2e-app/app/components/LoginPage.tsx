@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import HomeComponent from "../HomeComponent";
 import { useAuth } from '@/lib/AuthContext';
 
