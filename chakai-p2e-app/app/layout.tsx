@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import AppShell from "./AppShell";
+import { AuthProvider } from '../lib/AuthContext';
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -25,12 +26,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased h-full`}
-      >
-        <AppShell>{children}</AppShell>
-      </body>
-    </html>
+    <AuthProvider>
+      <html lang="en" className="h-full">
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} antialiased h-full`}
+        >
+          <AppShell>{children}</AppShell>
+        </body>
+      </html>
+    </AuthProvider>
   );
 }

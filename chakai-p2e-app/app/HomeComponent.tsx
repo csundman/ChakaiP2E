@@ -1,4 +1,14 @@
+"use client";
+
+import { useAuth } from '@/lib/AuthContext';
+
 export default function HomeComponent() {
+  const { isAuthenticated, logout, username } = useAuth();
+  
+  const scrollToLogin = () => {
+    document.getElementById('login-section')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
       <svg
@@ -42,6 +52,24 @@ export default function HomeComponent() {
         </g>
       </svg>
       <h1 className="text-2xl font-bold">Welcome to Chakai P2E!</h1>
+      {isAuthenticated && (
+        <p className="text-gray-600">You are logged in as {username}</p>
+      )}
+      {!isAuthenticated ? (
+        <button
+          onClick={scrollToLogin}
+          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Get Started
+        </button>
+      ) : (
+        <button
+          onClick={logout}
+          className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+        >
+          Logout
+        </button>
+      )}
     </div>
   );
 }

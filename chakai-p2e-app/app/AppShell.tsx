@@ -4,13 +4,21 @@ import { useState } from "react";
 import Nav from "./Nav";
 import { Breadcrumb } from "./components/Breadcrumb";
 import { CharacterProvider } from "./contexts/CharacterContext";
+import LoginPage from "./components/LoginPage";
+import { useAuth } from '../lib/AuthContext';
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+// Create a new component to use session
+function AppShellContent({ children }: { children: React.ReactNode }) {
   const [isNavOpen, setIsNavOpen] = useState(false);
+  const { isAuthenticated } = useAuth();
 
   const toggleNav = () => {
     setIsNavOpen(!isNavOpen);
   };
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
 
   return (
     <CharacterProvider>
@@ -47,4 +55,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     </CharacterProvider>
   );
+}
+
+// Main AppShell component that provides the session
+export default function AppShell({ children }: { children: React.ReactNode }) {
+  return <AppShellContent>{children}</AppShellContent>;
 } 
