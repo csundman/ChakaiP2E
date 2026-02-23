@@ -1,0 +1,637 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using Microsoft.Data.SqlClient;
+using System.Threading.Tasks;
+using ChakaiP2EFunctionsAPI.Models;
+using System.Net;
+using Microsoft.Identity.Client;
+using System.Collections;
+using System.ComponentModel;
+using System.Transactions;
+
+namespace ChakaiP2EFunctionsAPI.Utilities
+{
+    [AttributeUsage(AttributeTargets.Class)]
+    public class ViewAttribute : Attribute { }
+    [AttributeUsage(AttributeTargets.Class)]
+    public class PluralAttribute : Attribute
+    {
+        public string Name { get; }
+
+        public PluralAttribute(string name)
+        {
+            Name = name;
+        }
+    }
+
+    [AttributeUsage(AttributeTargets.Property)]
+    public class NoInsertAttribute : Attribute { }
+
+    [AttributeUsage(AttributeTargets.Property)]
+    public class NoSelectAttribute : Attribute { }
+
+    [AttributeUsage(AttributeTargets.Property)]
+    public class IdAttribute : Attribute { }
+
+    [AttributeUsage(AttributeTargets.Property)]
+    public class NoUpdateAttribute : Attribute { }
+
+    [AttributeUsage(AttributeTargets.Property)]
+    public class ChildCollectionAttribute : Attribute { }
+
+    public static class SqlHelper
+    {
+        public async static Task<T> ExecuteInsert<T>(SqlConnection conn, T obj) where T : BaseModel, new()
+        {
+            if (conn == null) throw new ArgumentNullException(nameof(conn));
+            if (obj == null) throw new ArgumentNullException(nameof(obj));
+
+            var type = typeof(T);
+            var pluralAttribute = type.GetCustomAttribute<PluralAttribute>();
+
+            var tableName = (pluralAttribute == null ? type.Name + "s" : pluralAttribute.Name);
+
+            PropertyInfo[] properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                                           .Where(p => p.GetCustomAttribute<NoInsertAttribute>() == null && p.GetCustomAttribute<ChildCollectionAttribute>() == null)
+                                           .ToArray();
+
+            if (properties.Length == 0) throw new ArgumentException("Object has no public properties that are Insertable.");
+
+            // Find the property marked with [Id]
+            PropertyInfo idProperty = type.GetProperties()
+                                          .FirstOrDefault(p => p.GetCustomAttribute<IdAttribute>() != null);
+
+            if (idProperty == null) throw new ArgumentException("Object has no publically accessible Id Attribute.");
+
+            // Start a local transaction
+            SqlTransaction transaction = conn.BeginTransaction();
+
+            try
+            {
+                using (SqlCommand command = conn.CreateCommand())
+                {
+                    command.Transaction = transaction;
+
+                    // Convert property names to column names (PascalCase -> snake_case)
+                    string[] columnNames = properties.Select(p => ToSnakeCase(p.Name)).ToArray();
+                    string[] parameterNames = properties.Select(p => "@" + p.Name).ToArray();
+
+                    // Create parameters
+                    foreach (var prop in properties)
+                    {
+                        object value = prop.GetValue(obj) ?? DBNull.Value;
+                        command.Parameters.AddWithValue("@" + prop.Name, value);
+                    }
+
+                    // Build SQL string
+                    StringBuilder sql = new StringBuilder();
+                    sql.Append($"INSERT INTO {tableName} (");
+                    sql.Append(string.Join(", ", columnNames));
+                    sql.Append(") VALUES (");
+                    sql.Append(string.Join(", ", parameterNames));
+                    sql.Append(");");
+
+                    // Add the retrieval of the last inserted ID
+                    sql.Append(" SELECT SCOPE_IDENTITY();");
+
+                    command.CommandText = sql.ToString();
+
+                    // Execute the insert and get the newly generated ID
+                    object result = await command.ExecuteScalarAsync();
+
+                    // If result is not null, set the ID property of the object
+                    if (result != null && result is decimal id) // SCOPE_IDENTITY returns a decimal
+                    {
+                        // Set the ID value to the object's property
+                        idProperty.SetValue(obj, (int)id); // cast to int as the ID is usually integer type
+                    }
+                    else
+                    {
+                        throw new Exception("Failed to aqcuire new Id");
+                    }
+                }
+
+                var resultObject = await ExecuteSelect<T>(conn, obj, transaction: transaction);
+
+                if (resultObject.FirstOrDefault() == null)
+                {
+                    throw new Exception("Failed to fetch newly created item.");
+                }
+
+                // Commit the transaction if everything went well
+                transaction.Commit();
+
+                return resultObject.First();
+            }
+            catch (Exception ex)
+            {
+                // If an error occurs, roll back the transaction
+                transaction.Rollback();
+                throw new Exception("SQL ERROR: " + ex.Message, ex);
+            }
+        }
+
+        public async static Task<T> ExecuteUpdate<T>(
+            SqlConnection conn,
+            T obj,
+            int id,
+            int? accountId = null
+        ) where T : BaseModel, new()
+        {
+            if (conn == null) throw new ArgumentNullException(nameof(conn));
+            if (obj == null) throw new ArgumentNullException(nameof(obj));
+
+            //Get the type and attributes.
+            Type type = typeof(T);
+            var pluralAttribute = type.GetCustomAttribute<PluralAttribute>();
+
+            //Table name and properties.
+            var tableName = ToSnakeCase(pluralAttribute == null ? type.Name + "s" : type.Name);
+
+            var allProperties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+            //Make sure this object belongs to the given account.
+            if (accountId != null)
+            {
+                var accountIdProperty = allProperties.FirstOrDefault(a => a.Name == "AccountId");
+                if (accountIdProperty == null || (int?)accountIdProperty.GetValue(obj) != accountId)
+                {
+                    throw new Exception("The current user may not access this object.");
+                }
+            }
+
+            //Filter down the properties for what we need
+            var properties = allProperties.Where(p => p.GetCustomAttribute<NoUpdateAttribute>() == null && p.GetCustomAttribute<ChildCollectionAttribute>() == null)
+            .ToArray();
+
+            var childCollectionProperties = allProperties
+                .Where(p => p.GetCustomAttribute<NoUpdateAttribute>() == null && p.GetCustomAttribute<ChildCollectionAttribute>() != null)
+                .ToArray();
+
+            if (properties.Length == 0 && childCollectionProperties.Length == 0)
+                throw new ArgumentException("Object has no public properties with the Updatable attribute.");
+
+            PropertyInfo idProperty = type.GetProperties()
+                .FirstOrDefault(p => p.GetCustomAttribute<IdAttribute>() != null);
+
+            if (idProperty == null)
+                throw new ArgumentException("Object has no publicly accessible Id Attribute.");
+
+            //Set the Id property to the given Id so we know which one to update
+            idProperty.SetValue(obj, id);
+
+            //Build the sql
+            SqlTransaction transaction = conn.BeginTransaction();
+            try
+            {
+                using (SqlCommand command = conn.CreateCommand())
+                {
+                    command.Transaction = transaction;
+
+                    var setClauses = new List<string>();
+                    foreach (var prop in properties)
+                    {
+                        if (prop.GetValue(obj) == null)
+                        {
+                            continue;
+                        }
+
+                        string columnName = ToSnakeCase(prop.Name);
+                        string parameterName = "@" + prop.Name;
+                        setClauses.Add($"{columnName} = {parameterName}");
+
+                        object value = prop.GetValue(obj) ?? DBNull.Value;
+                        command.Parameters.AddWithValue(parameterName, value);
+                    }
+
+                    if (setClauses.Count > 0)
+                    {
+                        StringBuilder sql = new StringBuilder();
+                        sql.Append($"UPDATE {tableName} SET ");
+                        sql.Append(string.Join(", ", setClauses));
+                        sql.Append($" WHERE {ToSnakeCase(idProperty.Name)} = @Id");
+
+                        command.Parameters.AddWithValue("@Id", id);
+
+                        // Check for AccountId on the object
+                        PropertyInfo accountIdProp = type.GetProperty("AccountId");
+                        if (accountIdProp != null)
+                        {
+                            var accountIdValue = accountIdProp.GetValue(obj);
+                            if (accountIdValue != null)
+                            {
+                                sql.Append(" AND account_id = @AccountId");
+                                command.Parameters.AddWithValue("@AccountId", accountIdValue);
+                            }
+                        }
+
+                        command.CommandText = sql.ToString();
+                        int affected = await command.ExecuteNonQueryAsync();
+
+                        if (affected == 0)
+                            throw new Exception("No rows were updated. The item may not exist or AccountId may not match.");
+                    }
+
+                    // Handle ChildCollections
+                    foreach (var prop in childCollectionProperties)
+                    {
+                        //Don't touch it if the value is null
+                        var childList = prop.GetValue(obj) as IEnumerable;
+                        if (childList == null) continue;
+
+                        Type listType = prop.PropertyType;
+                        Type childType = listType.GetGenericArguments().FirstOrDefault();
+                        if (childType == null)
+                            throw new Exception("Could not find type of child collection.");
+
+                        var childPluralAttribute = childType.GetCustomAttribute<PluralAttribute>();
+                        if (childPluralAttribute != null)
+                            throw new Exception("Could not find type of Child Collection.");
+
+                        var childTableName = ToSnakeCase(childPluralAttribute == null ? childType.Name + "s" : pluralAttribute.Name);
+
+                        string xRefTable = $"{tableName}_{childTableName}_xref";
+
+                        // Get parent key column
+                        string parentIdColumn = ToSnakeCase(idProperty.Name);
+                        object parentIdValue = idProperty.GetValue(obj);
+
+                        // DELETE children
+                        using (var deleteCmd = conn.CreateCommand())
+                        {
+                            deleteCmd.Transaction = transaction;
+                            deleteCmd.CommandText = $"DELETE FROM {xRefTable} WHERE {parentIdColumn} = @ParentId";
+                            deleteCmd.Parameters.AddWithValue("@ParentId", parentIdValue);
+                            await deleteCmd.ExecuteNonQueryAsync();
+                        }
+
+                        // INSERT new children
+
+                        var childIdProp = childType.GetProperties()
+                            .FirstOrDefault(p => p.GetCustomAttribute<IdAttribute>() != null);
+                        if (childIdProp == null)
+                            throw new Exception($"Child object {childType.Name} does not have an Id attribute.");
+
+                        string childIdColumn = ToSnakeCase(childIdProp.Name);
+
+                        foreach (var child in childList)
+                        {
+                            using (var insertCmd = conn.CreateCommand())
+                            {
+                                insertCmd.Transaction = transaction;
+                                insertCmd.CommandText = $"INSERT INTO {xRefTable} ({parentIdColumn}, {childIdColumn}) VALUES (@ParentId, @ChildId)";
+                                insertCmd.Parameters.AddWithValue("@ParentId", parentIdValue);
+                                object childIdValue = childIdProp.GetValue(child) ?? throw new Exception("Child ID is null.");
+                                insertCmd.Parameters.AddWithValue("@ChildId", childIdValue);
+                                await insertCmd.ExecuteNonQueryAsync();
+                            }
+                        }
+                    }
+                }
+
+                var resultObject = await ExecuteSelect<T>(conn, obj, accountId, transaction: transaction);
+
+                if (resultObject.FirstOrDefault() == null)
+                    throw new Exception("Failed to fetch updated item.");
+
+                transaction.Commit();
+
+                return resultObject.First();
+            }
+            catch (Exception ex)
+            {
+                if (transaction.Connection != null)
+                {
+                    transaction.Rollback();
+                }
+                throw new Exception("SQL ERROR: " + ex.Message, ex);
+            }
+        }
+
+
+        public async static Task<List<T>> ExecuteSelect<T>(
+            SqlConnection connection,
+            BaseModel filterModel = null,
+            int? accountId = null,
+            SqlTransaction transaction = null
+        ) where T : BaseModel, new()
+        {
+            //Check if we have a connection
+            if (connection == null) throw new ArgumentNullException(nameof(connection));
+
+            //Get type of the object, and any custom attributes on it. We use those to figure out the table name
+            Type type = typeof(T);
+            var viewAttribute = type.GetCustomAttribute<ViewAttribute>();
+            var pluralAttribute = type.GetCustomAttribute<PluralAttribute>();
+
+            var objectPluralName = pluralAttribute == null ? type.Name + "s" : pluralAttribute.Name;
+
+            var tableName = ToSnakeCase(viewAttribute == null ? objectPluralName : "V" + objectPluralName);
+
+            //Get all the properties for the object, and filter down which ones have attributes we care about.
+            PropertyInfo[] allProperties = type.GetProperties();
+
+            var selectedProperties = allProperties
+                .Where(p => p.GetCustomAttribute<NoSelectAttribute>() == null && p.GetCustomAttribute<ChildCollectionAttribute>() == null)
+                .ToArray();
+
+            var childCollectionProperties = allProperties
+                .Where(p => p.GetCustomAttribute<NoSelectAttribute>() == null && p.GetCustomAttribute<ChildCollectionAttribute>() != null)
+                .ToArray();
+
+            if (selectedProperties.Length == 0 && childCollectionProperties.Length == 0) 
+                throw new ArgumentException("Type has no properties eligible for selection.");
+
+            //Build our sql statement
+            string[] columnNames = selectedProperties.Select(p => ToSnakeCase(p.Name)).ToArray();
+
+            StringBuilder sql = new StringBuilder();
+            sql.Append("SELECT ");
+            sql.Append(string.Join(", ", columnNames));
+            sql.Append($" FROM {tableName}");
+
+            var parameters = new List<SqlParameter>();
+            var conditions = new List<string>();
+
+            //Check if we need to filter our SELECT
+            if (filterModel != null)
+            {
+                //Get the Id property of the filter object, which we use to filter.
+                var filterType = filterModel.GetType();
+                var idProp = filterType.GetProperties()
+                    .FirstOrDefault(p => p.GetCustomAttribute<IdAttribute>() != null);
+
+                if (idProp == null)
+                    throw new ArgumentException("Filter object must have one property marked with [Id].");
+
+                var propName = idProp.Name;
+                object value = idProp.GetValue(filterModel) ?? DBNull.Value;
+
+                //Find the matching property on our object, like a JOIN
+                var matchingProp = allProperties.FirstOrDefault(p => p.Name == propName);
+                if (matchingProp == null)
+                    throw new ArgumentException($"No matching property '{propName}' found on type '{type.Name}'.");
+
+                //Build the sql for our filter
+                var columnName = ToSnakeCase(propName);
+                var paramName = "@filter_" + propName;
+
+                conditions.Add($"{columnName} = {paramName}");
+                parameters.Add(new SqlParameter(paramName, value));
+            }
+
+            if (accountId != null)
+            {
+                //If we have an account Id, filter by that as well.
+                var accountProp = allProperties.FirstOrDefault(p => p.Name == "AccountId");
+                if (accountProp == null)
+                    throw new ArgumentException("Type does not contain an 'AccountId' property.");
+
+                string accountColumn = ToSnakeCase("AccountId");
+                string accountParam = "@account_id";
+                conditions.Add($"{accountColumn} = {accountParam}");
+                parameters.Add(new SqlParameter(accountParam, accountId));
+            }
+
+            if (conditions.Count > 0)
+            {
+                //Build the where statement if we've added any filters
+                sql.Append(" WHERE ").Append(string.Join(" AND ", conditions));
+            }
+
+            sql.Append(";");
+
+            //Fetch the rows for our result set
+            var rootObjects = new List<T>();
+
+            using (var command = new SqlCommand(sql.ToString(), connection))
+            {
+                if (transaction != null)
+                    command.Transaction = transaction;
+
+                command.Parameters.AddRange(parameters.ToArray());
+
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    while (reader.Read())
+                    {
+                        var instance = new T();
+                        foreach (var prop in selectedProperties)
+                        {
+                            var columnName = ToSnakeCase(prop.Name);
+                            if (!reader.IsDBNull(reader.GetOrdinal(columnName)))
+                            {
+                                var value = reader.GetValue(reader.GetOrdinal(columnName));
+                                prop.SetValue(instance, value);
+                            }
+                        }
+                        rootObjects.Add(instance);
+                    }
+                }
+            }
+
+            // Populate ChildCollections
+            foreach (var rootObject in rootObjects)
+            {
+                foreach (var prop in childCollectionProperties)
+                {
+                    var childResultList = await FetchChildCollection(prop, objectPluralName, allProperties, rootObject, connection, transaction);
+
+                    prop.SetValue(rootObject, childResultList);
+                }
+            }
+
+            return rootObjects;
+        }
+
+        private static async Task<IList> FetchChildCollection<T>(PropertyInfo prop, string objectPluralName, PropertyInfo[] allProperties, T rootObject, SqlConnection connection, SqlTransaction transaction)
+            where T : BaseModel, new()
+        {
+            var listType = prop.PropertyType;
+            var childType = listType.GetGenericArguments().FirstOrDefault();
+            if (childType == null)
+                throw new Exception("Could not determine child type.");
+
+            var childPluralAttribute = childType.GetCustomAttribute<PluralAttribute>();
+
+            var childObjectPluralName = childPluralAttribute == null ? childType.Name + "s" : childPluralAttribute.Name;
+
+            string childViewName = ToSnakeCase($"V" + objectPluralName + childObjectPluralName);
+
+            var parentIdProp = allProperties.FirstOrDefault(p => p.GetCustomAttribute<IdAttribute>() != null);
+            if (parentIdProp == null)
+                throw new Exception("Parent object does not have an [Id] property.");
+
+            object parentId = parentIdProp.GetValue(rootObject);
+            string parentIdColumn = ToSnakeCase(parentIdProp.Name);
+
+            var childSelectedProps = childType
+                .GetProperties()
+                .Where(p => p.GetCustomAttribute<NoSelectAttribute>() == null && p.GetCustomAttribute<ChildCollectionAttribute>() == null)
+                .ToArray();
+
+            string[] childColumnNames = childSelectedProps.Select(p => ToSnakeCase(p.Name)).ToArray();
+
+            StringBuilder childSql = new StringBuilder();
+            childSql.Append("SELECT ");
+            childSql.Append(string.Join(", ", childColumnNames));
+            childSql.Append($" FROM {childViewName} WHERE {parentIdColumn} = @Filter;");
+
+            var childResultList = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(childType));
+
+            using (var childCmd = new SqlCommand(childSql.ToString(), connection))
+            {
+                if (transaction != null)
+                    childCmd.Transaction = transaction;
+
+                childCmd.Parameters.AddWithValue("@Filter", parentId ?? DBNull.Value);
+
+                using (var childReader = await childCmd.ExecuteReaderAsync())
+                {
+                    while (childReader.Read())
+                    {
+                        var childInstance = Activator.CreateInstance(childType);
+                        foreach (var childProp in childSelectedProps)
+                        {
+                            var columnName = ToSnakeCase(childProp.Name);
+                            if (!childReader.IsDBNull(childReader.GetOrdinal(columnName)))
+                            {
+                                var value = childReader.GetValue(childReader.GetOrdinal(columnName));
+                                childProp.SetValue(childInstance, value);
+                            }
+                        }
+                        childResultList.Add(childInstance);
+                    }
+                }
+            }
+
+            return childResultList;
+        }
+
+        private static async Task<List<object>> ExecuteSelectInternalAsync(
+            SqlConnection connection,
+            Type targetType,
+            string tableName,
+            string filterColumn,
+            object filterValue,
+            SqlTransaction transaction = null)
+        {
+            var allProperties = targetType.GetProperties();
+
+            var selectedProperties = allProperties
+                .Where(p => p.GetCustomAttribute<NoSelectAttribute>() == null && p.GetCustomAttribute<ChildCollectionAttribute>() == null)
+                .ToArray();
+
+            string[] columnNames = selectedProperties.Select(p => ToSnakeCase(p.Name)).ToArray();
+            StringBuilder sql = new StringBuilder();
+            sql.Append("SELECT ");
+            sql.Append(string.Join(", ", columnNames));
+            sql.Append($" FROM {tableName}");
+
+            var parameters = new List<SqlParameter>();
+            if (!string.IsNullOrWhiteSpace(filterColumn))
+            {
+                sql.Append(" WHERE ").Append($"{filterColumn} = @Filter");
+                parameters.Add(new SqlParameter("@Filter", filterValue ?? DBNull.Value));
+            }
+
+            sql.Append(";");
+
+            var resultList = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(targetType));
+
+            using (var command = new SqlCommand(sql.ToString(), connection))
+            {
+                if (transaction != null)
+                    command.Transaction = transaction;
+
+                command.Parameters.AddRange(parameters.ToArray());
+
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    while (reader.Read())
+                    {
+                        var instance = Activator.CreateInstance(targetType);
+                        foreach (var prop in selectedProperties)
+                        {
+                            var columnName = ToSnakeCase(prop.Name);
+                            if (!reader.IsDBNull(reader.GetOrdinal(columnName)))
+                            {
+                                var value = reader.GetValue(reader.GetOrdinal(columnName));
+                                prop.SetValue(instance, value);
+                            }
+                        }
+                        resultList.Add(instance);
+                    }
+                }
+            }
+
+            return resultList.Cast<object>().ToList();
+        }
+
+
+        public static bool ExecuteDelete(SqlConnection connection, string tableName, BaseModel model, int? accountId = null)
+        {
+            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            if (model == null) throw new ArgumentNullException(nameof(model));
+
+            try
+            {
+                Type modelType = model.GetType();
+                PropertyInfo[] props = modelType.GetProperties();
+
+                PropertyInfo idProp = props.FirstOrDefault(p => p.GetCustomAttribute<IdAttribute>() != null);
+                if (idProp == null)
+                    throw new ArgumentException("Model must have a property marked with [Id].");
+
+                string columnName = ToSnakeCase(idProp.Name);
+                object value = idProp.GetValue(model) ?? throw new ArgumentException("Model must have a valid Id");
+
+                StringBuilder sql = new StringBuilder();
+                sql.Append($"DELETE FROM {tableName} WHERE {columnName} = @id");
+
+                var command = new SqlCommand(sql.ToString(), connection);
+                command.Parameters.AddWithValue("@id", value);
+
+                if (accountId != null)
+                {
+                    var accountProp = props.FirstOrDefault(p => p.Name == "AccountId");
+                    if (accountProp == null)
+                        throw new ArgumentException("Model does not contain an 'AccountId' property.");
+
+                    sql.Append(" AND account_id = @account_id");
+                    command.CommandText = sql.ToString();
+                    command.Parameters.AddWithValue("@account_id", accountId);
+                }
+
+                return command.ExecuteNonQuery() > 0;
+            }
+            catch (Exception ex)
+            {
+                // Log or rethrow as needed
+                throw new InvalidOperationException("Failed to execute delete command.", ex);
+            }
+        }
+
+        private static string ToSnakeCase(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return input;
+
+            StringBuilder result = new StringBuilder();
+
+            for (int i = 0; i < input.Length; i++)
+            {
+                char c = input[i];
+                if (char.IsUpper(c) && i > 0)
+                {
+                    result.Append('_');
+                }
+                result.Append(char.ToLower(c));
+            }
+
+            return result.ToString();
+        }
+    }
+}

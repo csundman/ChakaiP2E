@@ -1,0 +1,10 @@
+is_global = true
+build_property.FunctionsEnableMetadataSourceGen = 
+build_property.FunctionsEnableExecutorSourceGen = false
+build_property.RootNamespace = ChakaiP2EFunctionsAPI
+build_property.ProjectDir = C:\Users\csund\source\repos\VSProjects\ChakaiP2EAPI\ChakaiP2EFunctionsAPI\
+build_property.EnableComHosting = 
+build_property.EnableGeneratedComInterfaceComImportInterop = 
+build_property.CsWinRTUseWindowsUIXamlProjections = false
+build_property.EffectiveAnalysisLevelStyle = 
+build_property.EnableCodeStyleSeverity = 

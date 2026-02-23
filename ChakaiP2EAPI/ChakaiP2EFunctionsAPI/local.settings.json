@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "AzureWebJobsDashboard": "",
+    "SQLAZURECONNSTR_ChakaiP2EFunctionsConnection": "Server=tcp:localhost,1433;Database=ChakaiP2EDB;Integrated Security=True;Encrypt=True;TrustServerCertificate=True",
+    "RegistrationKey": "I play games with Sundmans"
+  },
+  "Host": {
+    "CORS": "*",
+    "CORS_SUPPORT_CREDENTIALS": true
+  }
+}

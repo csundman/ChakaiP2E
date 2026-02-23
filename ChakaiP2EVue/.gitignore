@@ -1,0 +1,14 @@
+# Visual Studio per-user/per-machine caches (should never be committed)
+.vs/
+
+# Visual Studio / Visual Studio Cache
+.vs/
+*.suo
+*.user
+**/obj/
+
+# Node / Vite
+**/node_modules/
+**/dist/
+
+

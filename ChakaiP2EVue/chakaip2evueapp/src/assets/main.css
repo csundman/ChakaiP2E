@@ -1,0 +1,189 @@
+@import './base.css';
+
+/* -----------------------------
+   BASE / LAYOUT
+   ----------------------------- */
+body {
+  display: block;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  overflow: hidden;
+}
+
+#app { margin: 0 auto; font-weight: normal; display: block; }
+
+/* small helper to quickly debug boundaries (commented by default)
+ *  outline: 1px solid red;
+ *  background-color: rgba(255, 0, 0, 0.05);
+ */
+
+/* -----------------------------
+   TYPOGRAPHY
+   ----------------------------- */
+h2 { font-size: 1.5em; margin: 0 0 0.5rem 0; }
+
+.green { text-decoration: none; color: hsla(160,100%,37%,1); transition: 0.4s; padding: 3px; }
+@media (hover: hover) { a:hover { background-color: hsla(160,100%,37%,0.2); } }
+
+/* -----------------------------
+   BUTTONS
+   ----------------------------- */
+/* Generic base for all buttons */
+.btn { 
+  padding: 0.6rem .6rem;
+  border: none; 
+  border-radius: 6px; 
+  font-weight: 600; 
+  cursor: pointer; 
+  transition: background 0.2s ease, transform 0.08s ease; 
+}
+
+/* Shared btn variants */
+.btn.back { background: #eee; color: inherit; }
+.btn.edit { background: #007bff; color: white; }
+.btn.save { background: #28a745; color: white; }
+.btn.add { background-color: #4a90e2; color: white; }
+.btn.delete { background-color: #e74c3c; color: white; }
+.btn.cancel { background: #6d6d6d; color: white; }
+.btn.filter { color: white; }
+.btn.filter.show-mode { background-color: #3498db; }
+.btn.filter.clear-mode { background-color: #e74c3c; }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* subtle hover effect for all actionable buttons */
+.btn:not(:disabled):hover {
+   transform: translateY(-2px);
+   box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+
+/* focus state for accessibility */
+.btn:focus { outline: 3px solid rgba(0,123,255,0.15); outline-offset: 2px; }
+
+/* -----------------------------
+   FORMS
+   ----------------------------- */
+.field { margin-bottom: 1.25rem; display:flex; flex-direction:column; }
+label { font-weight:600; margin-bottom:0.3rem; color:#333; }
+input, select, textarea { padding:0.6rem; font-size:1rem; border:1px solid #ccc; border-radius:6px; background-color:#fdfdfd; }
+textarea { resize: vertical; }
+.pre { white-space: pre-wrap; background:#f9f9f9; padding:0.6rem; border-radius:6px; border:1px solid #eee; }
+.buttons { display:flex; gap:1rem; margin-top:1.5rem; flex-wrap:wrap; }
+
+/* -----------------------------
+   CARDS / GRIDS
+   ----------------------------- */
+.basic-grid { display:flex; flex-direction:column; gap:12px; }
+.basic-card { background-color:white; padding:12px 16px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center; }
+
+.search-bar {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1rem;
+    box-sizing: border-box;
+    margin-bottom: 0;
+    flex: 1 1 auto;
+    min-width: 150px;
+}
+.grid-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.grid-title {
+    font-weight: 700;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 12px;
+    margin-bottom: 20px;
+}
+
+.page-btn {
+    padding: 6px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #f9f9f9;
+    transition: background 0.1s;
+}
+
+.page-btn:hover:not(:disabled) {
+    background: #eee;
+}
+
+.page-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.page-info {
+    font-size: 14px;
+}
+
+/* -----------------------------
+   MODALS / ERROR BOXES
+   ----------------------------- */
+.modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; justify-content:center; align-items:center; z-index:1000; }
+.error-message { background-color:#f8d7da; color:#721c24; border:1px solid #f5c6cb; padding:15px; margin-bottom:20px; border-radius:5px; font-size:1.1em; }
+
+/* -----------------------------
+   SHARED COMPONENTS / LAYOUT HELPERS
+   ----------------------------- */
+.panel { 
+  max-width:700px; 
+  margin: auto; 
+  padding:1.5rem; 
+  background:#ffffff; 
+  border-radius:10px; 
+  box-shadow:0 2px 10px rgba(0,0,0,0.08); 
+  font-family:system-ui, sans-serif; 
+  position:relative; 
+}
+
+.top-bar { display:flex; justify-content:space-between; margin-bottom:1.5rem; gap:12px; align-items:center; }
+.detail-field { margin-top:1rem; margin-bottom:0.5rem; font-weight:700; }
+
+/* -----------------------------
+   UTILITIES
+   ----------------------------- */
+.clickable { cursor:pointer; color:var(--link-color,#007bff); }
+.empty { text-align:center; padding:16px; color:#666; }
+
+/* -----------------------------
+   DARK MODE
+   ----------------------------- */
+@media (prefers-color-scheme: dark) {
+  body { background-color:#1e1e1e; color:#e0e0e0; }
+  #app { background-color:#1e1e1e; color:#f5f5f5; }
+  .green { color: hsla(160,100%,57%,1); }
+  .error-message { background-color:#8a2e2e; color:#fff; }
+  .modal-overlay { background: rgba(0,0,0,0.7); }
+  .basic-card { background-color:#2a2a2a; box-shadow:0 2px 8px rgba(0,0,0,0.6); color:#f0f0f0; border:1px solid #333; }
+  .basic-card:hover { background-color:#333; transition: background-color 0.3s ease; }
+  .panel { background:#2a2a2a; box-shadow:0 4px 16px rgba(0,0,0,0.8); }
+  label { color:#ddd; }
+  input, select, textarea { background-color:#2a2a2a; border:1px solid #555; color:#f0f0f0; }
+  .pre { background:#2b2b2b; border:1px solid #444; color:#e0e0e0; }
+
+    /* Dark Mode Buttons */
+  .btn.back { background: #333; color: #f2f2f2; }
+  .btn.edit { background: #1a73e8; color: #fff; }
+  .btn.save { background: #1f8b3a; color: #fff; }
+  .btn.add { background-color: #357abd; color: #fff; }
+  .btn.delete { background-color: #c0392b; color: #fff; }
+  .btn.cancel { background: #555; color: #eee; }
+  .btn.filter { color: #fff; }
+  .btn.filter.show-mode { background-color: #2d78c1; }
+  .btn.filter.clear-mode { background-color: #b93a2c; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+}

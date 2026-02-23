@@ -1,0 +1,89 @@
+[
+  {
+    "name": "AccountsCRUD",
+    "scriptFile": "ChakaiP2EFunctionsAPI.exe",
+    "entryPoint": "ChakaiP2EFunctionsAPI.Functions.AccountsController.Run",
+    "language": "dotnet-isolated",
+    "properties": {
+      "IsCodeless": false
+    },
+    "bindings": [
+      {
+        "name": "req",
+        "direction": "In",
+        "type": "httpTrigger",
+        "authLevel": "Anonymous",
+        "methods": [
+          "get",
+          "post",
+          "put",
+          "delete"
+        ],
+        "route": "accounts/{id?}",
+        "properties": {}
+      },
+      {
+        "name": "$return",
+        "type": "http",
+        "direction": "Out"
+      }
+    ]
+  },
+  {
+    "name": "CharactersCRUD",
+    "scriptFile": "ChakaiP2EFunctionsAPI.exe",
+    "entryPoint": "ChakaiP2EFunctionsAPI.Functions.CharactersController.Run",
+    "language": "dotnet-isolated",
+    "properties": {
+      "IsCodeless": false
+    },
+    "bindings": [
+      {
+        "name": "req",
+        "direction": "In",
+        "type": "httpTrigger",
+        "authLevel": "Anonymous",
+        "methods": [
+          "get",
+          "post",
+          "put",
+          "delete"
+        ],
+        "route": "characters/{id?}",
+        "properties": {}
+      },
+      {
+        "name": "$return",
+        "type": "http",
+        "direction": "Out"
+      }
+    ]
+  },
+  {
+    "name": "Login",
+    "scriptFile": "ChakaiP2EFunctionsAPI.exe",
+    "entryPoint": "ChakaiP2EFunctionsAPI.Functions.Login.Run",
+    "language": "dotnet-isolated",
+    "properties": {
+      "IsCodeless": false
+    },
+    "bindings": [
+      {
+        "name": "req",
+        "direction": "In",
+        "type": "httpTrigger",
+        "authLevel": "Anonymous",
+        "methods": [
+          "post"
+        ],
+        "route": "login",
+        "properties": {}
+      },
+      {
+        "name": "$return",
+        "type": "http",
+        "direction": "Out"
+      }
+    ]
+  }
+]

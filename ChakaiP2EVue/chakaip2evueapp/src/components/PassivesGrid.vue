@@ -1,0 +1,390 @@
+<template>
+    <!-- Error message -->
+    <div v-if="errorMessage" class="error-message">
+        {{ errorMessage }}
+    </div>
+    
+    <!-- Passive Table -->
+    <div class="table-wrapper">
+        <!-- Toolbar: Title + Search Bar -->
+        <div class="grid-toolbar">
+            <div class="grid-title" v-if="props.title">
+                {{ props.title }}
+            </div>
+
+            <input
+                type="text"
+                v-model="searchQuery"
+                placeholder="Search by name..."
+                class="search-bar"
+            />
+
+            <button
+                :class="['btn filter', showFilters ? 'clear-mode' : 'show-mode']"
+                @click="toggleFilters"
+            >
+                {{ 
+                    // showFilters ? 'Clear Filters' : 'Show Filters' 
+                    '🧹'
+                }}
+            </button>
+        </div>
+        <div class="filter-controls">
+            <!-- Filter Controls (animated unfold) -->
+            <transition name="unfold">
+                <div v-show="showFilters" class="filter-area">
+
+                    <!-- Dropdown Filters -->
+                    <div class="dropdown-filters">
+                        <select v-model="selectedTypeId">
+                            <option value="">All Passive Types</option>
+                            <option
+                                v-for="type in chakaischemaStore.getIdNamePairsByTable('passive_types')"
+                                :key="type.ChakaiSchemaId"
+                                :value="type.ChakaiSchemaId"
+                            >
+                                {{ isMobile ? (type.ChakaiSchemaName || type.ChakaiSchemaName) : type.ChakaiSchemaName }}
+                            </option>
+                        </select>
+                    </div>
+                </div>
+            </transition>
+        </div>
+
+        <table class="passive-table">
+            <thead>
+                <tr>
+                    <th @click="setSort('name')" style="cursor: pointer">
+                        Name
+                        <span v-if="sortKey === 'name'">{{ sortAsc ? '▲' : '▼' }}</span>
+                    </th>
+                    <th @click="setSort('type')" style="cursor: pointer">
+                        Type
+                        <span v-if="sortKey === 'type'">{{ sortAsc ? '▲' : '▼' }}</span>
+                    </th>
+
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="passive in pagedPassives" :key="passive.PassiveId" 
+                    class="clickable-row"
+                    @dblclick="goToPassiveDetails(passive)"
+                >
+                    <td>{{ passive.PassiveName }}</td>
+                    <td>{{ getNameById('passive_types', passive.PassiveTypeId, isMobile) }}</td>
+
+                </tr>
+            </tbody>
+        </table>
+        <div class="pagination-controls" style="margin-bottom: 20px;">
+            <button 
+                class="page-btn" 
+                :disabled="pageNum === 1"
+                @click="pageNum--"
+            >
+                ⬅️ Prev
+            </button>
+
+            <span class="page-info">
+                Page {{ pageNum }} / {{ totalPages }}
+            </span>
+
+            <button 
+                class="page-btn" 
+                :disabled="pageNum === totalPages"
+                @click="pageNum++"
+            >
+                Next ➡️
+            </button>
+        </div>
+    </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import type { Passive } from '@/types/';
+import { chakaischemaStore } from '@/stores/';
+
+const props = defineProps<{
+    title: string,
+    passives: Passive[],
+    errorMessage: string | null;
+    pageSize?: number;
+}>();
+
+// Modal visibility
+const showFilters = ref(false)
+
+// Filter state
+const selectedTypeId = ref('');
+const isMobile = ref(window.innerWidth < 768);
+const searchQuery = ref('');
+
+const pageNum = ref(1);
+const pageSize = ref(props.pageSize ?? 10);
+
+const updateIsMobile = () => {
+    isMobile.value = window.innerWidth < 768;
+};
+
+onMounted(() => {
+    window.addEventListener('resize', updateIsMobile);
+});
+
+onBeforeUnmount(() => {
+    window.removeEventListener('resize', updateIsMobile);
+});
+
+const emit = defineEmits<{
+    (e: 'passive-clicked', passive: Passive): void
+}>();
+
+const goToPassiveDetails = (passive: Passive) => {
+    console.info("Passive-clicked");
+    emit('passive-clicked', passive);
+};
+
+function toggleFilters() {
+    if (showFilters.value) {
+        // If visible → clear all and hide
+        clearFilters();
+        searchQuery.value = '';
+        showFilters.value = false;
+    } else {
+        // If hidden → show
+        showFilters.value = true;
+    }
+}
+
+function clearFilters() {
+    selectedTypeId.value = '';
+}
+
+const filteredPassives = computed(() => {
+    const query = searchQuery.value.trim().toLowerCase();
+
+    return [...props.passives]
+        .filter(passive =>
+            (!selectedTypeId.value || passive.PassiveTypeId == Number(selectedTypeId.value)) &&
+            (!query || passive.PassiveName?.toLowerCase().includes(query))
+        )
+        .sort((a, b) => {
+            let aVal: string | number;
+            let bVal: string | number;
+
+            switch (sortKey.value) {
+                case 'name':
+                    aVal = a.PassiveName.toLowerCase();
+                    bVal = b.PassiveName.toLowerCase();
+                    break;
+                case 'type':
+                    aVal = a.PassiveTypeId;
+                    bVal = b.PassiveTypeId;;
+                    break;
+            }
+
+            if (aVal < bVal) return sortAsc.value ? -1 : 1;
+            if (aVal > bVal) return sortAsc.value ? 1 : -1;
+            return 0;
+        });
+});
+
+const pagedPassives = computed(() => {
+    const start = (pageNum.value - 1) * pageSize.value;
+    return filteredPassives.value.slice(start, start + pageSize.value);
+});
+
+
+const totalPages = computed(() => {
+    return Math.max(1, Math.ceil(filteredPassives.value.length / pageSize.value));
+});
+
+// Helpers
+const getNameById = (table: string, id: string | number | null | undefined, useShort = false): string => {
+    if (!id) return '';
+    const match = chakaischemaStore.getIdNamePairsByTable(table).find(entry => entry.ChakaiSchemaId === id);
+    if (!match) return '';
+    return useShort ? match.ChakaiSchemaShortName || match.ChakaiSchemaName : match.ChakaiSchemaName;
+};
+
+const sortKey = ref<'name' | 'type'>('name');
+const sortAsc = ref(true);
+
+function setSort(key: typeof sortKey.value) {
+    if (sortKey.value === key) {
+        sortAsc.value = !sortAsc.value;
+    } else {
+        sortKey.value = key;
+        sortAsc.value = true;
+    }
+}
+
+
+</script>
+
+<style scoped>
+
+.table-wrapper {
+    margin-bottom: 16px;
+}
+
+.filter-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 5px;
+    margin-top: 16px;
+    width: 100%;
+}
+
+.filter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.filter-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.filter-area {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Make the filter area clip overflow and animate via scaleY for symmetric timing */
+.filter-area {
+    overflow: hidden;
+    transform-origin: top;
+}
+
+.unfold-enter-active, .unfold-leave-active {
+    transition: transform 0.32s cubic-bezier(.2,.9,.2,1), opacity 0.22s ease;
+}
+.unfold-enter-from, .unfold-leave-to {
+    transform: scaleY(0);
+    opacity: 0;
+}
+.unfold-enter-to, .unfold-leave-from {
+    transform: scaleY(1);
+    opacity: 1;
+}
+
+.dropdown-filters {
+    display: flex;
+    gap: 10px; /* Optional: adjust spacing between dropdowns */
+    width: 100%;
+}
+
+.dropdown-filters select {
+    flex: 1;              /* Equal width for all */
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    min-width: 0;         /* Important: allows shrinking properly */
+}
+
+.filter-toggle-btn.show-mode {
+    background-color: #3498db; /* blue */
+    color: white;
+}
+
+.filter-toggle-btn.clear-mode {
+    background-color: #e74c3c; /* red */
+    color: white;
+}
+
+.passive-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.passive-table th,
+.passive-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+    font-size: 0.95rem;
+}
+
+.passive-table th {
+    background-color: #e0dede;
+    font-weight: 600;
+}
+.passive-table th:nth-child(1),
+.passive-table td:nth-child(1) {
+    width: 70%;
+}
+
+.passive-table th:nth-child(2),
+.passive-table td:nth-child(2) {
+    width: 30%;
+}
+
+.clickable-row {
+    transition: background-color 0.2s, transform 0.1s ease-out; /* Smooth transition */
+    cursor: pointer;
+}
+
+.clickable-row:active {
+    background-color: #ddd;  /* Light gray background when pressed */
+    transform: scale(0.98);  /* Slightly shrink for pressed effect */
+}
+
+/* Optional: Add hover effect for better UX */
+.clickable-row:hover {
+    background-color: #f5f5f5; /* Light hover color */
+    transform: scale(1.02);
+}
+
+@media (prefers-color-scheme: dark) {
+    .passive-table {
+        background-color: #1e1e1e;
+        box-shadow: 0 2px 8px rgba(255, 255, 255, 0.05);
+    }
+
+    .passive-table th {
+        background-color: #2a2a2a;
+        color: #ddd;
+        border-bottom: 1px solid #444;
+    }
+
+    .passive-table td {
+        color: #e0e0e0;
+        border-bottom: 1px solid #333;
+    }
+
+    .search-bar {
+        background-color: #444;  /* Dark background for search bar */
+        border: 1px solid #555;  /* Darker border for search input */
+        color: #e0e0e0;  /* Light text color for search bar */
+    }
+
+    .dropdown-filters select {
+        background-color: #444;  /* Dark background for dropdowns */
+        border: 1px solid #555;  /* Dark border for dropdowns */
+        color: #e0e0e0;  /* Light text color for dropdown options */
+    }
+
+    .clickable-row {
+        background-color: #2a2a2a;  /* Dark background for rows */
+        color: #e0e0e0;  /* Light text color */
+    }
+
+    .clickable-row:active {
+        background-color: #444;  /* Darker background when pressed */
+    }
+
+    .clickable-row:hover {
+        background-color: #333; /* Slightly lighter background on hover */
+    }
+}
+
+</style>

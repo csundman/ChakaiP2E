@@ -1,0 +1,9 @@
+{
+  "description": {
+    "language": "dotnet-isolated",
+    "extensions": [ ".dll" ],
+    "defaultExecutablePath": "{WorkerRoot}ChakaiP2EFunctionsAPI.exe",
+    "defaultWorkerPath": "ChakaiP2EFunctionsAPI.exe",
+    "workerIndexing": "false"
+  }
+}

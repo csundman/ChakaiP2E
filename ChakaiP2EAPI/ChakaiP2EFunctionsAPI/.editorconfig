@@ -1,0 +1,14 @@
+# Functions project local analyzers configuration.
+# Keep this scoped to the Azure Functions project so it doesn't affect the rest of the repo.
+
+[*.cs]
+# Private field is never used (commonly used for DI placeholders like `_logger`)
+dotnet_diagnostic.CS0169.severity = none
+
+# Field is assigned but its value is never used
+dotnet_diagnostic.CS0414.severity = none
+
+# Async method lacks 'await' operators (used in virtual base methods that throw by default)
+dotnet_diagnostic.CS1998.severity = none
+
+
